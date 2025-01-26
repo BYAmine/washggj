@@ -1,63 +1,80 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class SpongeTool : MonoBehaviour
 {
     [SerializeField]
-    private GameObject dirtspotpos;
+    private List<GameObject> dirtSpots; // List of dirt spots
 
-    private Transform spongepos;
-    public float distance;
-    public float margin = 0.5f; // Fixed spelling
-    public Renderer dirtmaterial;
+    private Transform spongePosition;
+    public float margin = 0.5f; // Distance threshold for cleaning
     public float fadeSpeed = 3f;
 
-    private bool isFading = false; // To track if fading is in progress
+    private List<Renderer> dirtMaterials = new List<Renderer>(); // Store renderers of dirt spots
+    private List<bool> isFadingList = new List<bool>(); // Track fading state for each dirt spot
 
     void Start()
     {
-        spongepos = transform; // Assign the transform of the current GameObject
+        spongePosition = transform; // Assign the transform of the current GameObject
 
-        if (dirtmaterial == null && dirtspotpos != null)
+        // Populate materials and fading states
+        foreach (GameObject dirtSpot in dirtSpots)
         {
-            dirtmaterial = dirtspotpos.GetComponent<Renderer>();
+            if (dirtSpot != null)
+            {
+                Renderer renderer = dirtSpot.GetComponent<Renderer>();
+                if (renderer != null)
+                {
+                    dirtMaterials.Add(renderer);
+                    isFadingList.Add(false); // Initialize fading state for this spot
+                }
+            }
         }
     }
 
-    void Update() // Fixed method name
+    void Update()
     {
         Cleaning();
     }
 
     public void Cleaning()
     {
-        if (dirtspotpos == null || dirtmaterial == null)
+        // Loop through all dirt spots
+        for (int i = 0; i < dirtSpots.Count; i++)
         {
-            return; // Exit if no dirtspot or material is assigned
-        }
+            if (dirtSpots[i] == null || dirtMaterials[i] == null)
+            {
+                continue; // Skip if the spot or material is missing
+            }
 
-        distance = Vector3.Distance(spongepos.position, dirtspotpos.transform.position);
+            float distance = Vector3.Distance(spongePosition.position, dirtSpots[i].transform.position);
 
-        if (distance < margin && !isFading)
-        {
-            StartCoroutine(FadeAndDestroy());
+            if (distance < margin && !isFadingList[i])
+            {
+                StartCoroutine(FadeAndDestroy(i)); // Pass the index to handle the specific spot
+            }
         }
     }
 
-    private System.Collections.IEnumerator FadeAndDestroy()
+    private IEnumerator FadeAndDestroy(int index)
     {
-        isFading = true;
+        isFadingList[index] = true;
 
-        Color color = dirtmaterial.material.color;
+        Renderer dirtMaterial = dirtMaterials[index];
+        Color color = dirtMaterial.material.color;
 
+        // Fade out the material
         while (color.a > 0f)
         {
             color.a -= fadeSpeed * Time.deltaTime;
             color.a = Mathf.Clamp01(color.a);
-            dirtmaterial.material.color = color;
+            dirtMaterial.material.color = color;
             yield return null; // Wait for the next frame
         }
 
-        Destroy(dirtspotpos);
-        isFading = false;
+        Destroy(dirtSpots[index]); // Remove the dirt spot
+        dirtSpots[index] = null; // Set the reference to null
+        isFadingList[index] = false;
     }
 }
