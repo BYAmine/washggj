@@ -1,164 +1,59 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using System.Collections.Generic;
 
-public class CarWashManager : MonoBehaviour
+public class CarSystem : MonoBehaviour
 {
-  [System.Serializable]
-  public class Car
-  {
-    //public string carName;
-    public GameObject carObject;
-  }
+    public List<GameObject> cars; // List of car prefabs
+    public Transform startPoint; // Starting position for cars
+    public Transform point1; // First waypoint
+    public Transform point2; // Second waypoint
+    public float moveSpeed = 5f; // Speed of the cars
+    public float rotationSpeed = 90f; // Degrees per second
+    public float timerInterval = 5f; // Time before the next car starts
 
-  public List<Car> carList;
-  public Transform washingSpot;
-  public Transform paintingSpot;
-  public float carWashTime = 30f;
+    private Queue<GameObject> carQueue; // Queue to manage cars
+    private float timer; // Timer to control car starts
 
-  private int currentCarIndex = 0;
-  private float timer = 0f;
-  private bool isWashing = false;
-
-  void Start()
-  {
-    if (carList.Count > 0)
+    void Start()
     {
-      SpawnCar();
-    }
-    else
-    {
-      Debug.LogWarning("Car list is empty!");
-    }
-  }
-
-  void Update()
-  {
-    if (!isWashing || carList.Count == 0) return;
-
-    timer += Time.deltaTime;
-    Debug.Log(timer);
-
-    if (timer > carWashTime)
-    {
-
-      Debug.Log("You ran out of time!");
-      EndCarWash(false); 
-    }
-  }
-
-  void SpawnCar()
-  {
-    if (currentCarIndex >= carList.Count)
-    {
-      Debug.Log("All cars have been washed.");
-      return;
+        carQueue = new Queue<GameObject>(cars); // Initialize the queue with the cars list
+        SpawnNextCar(); // Spawn the first car
     }
 
-    Car currentCar = carList[currentCarIndex];
-    currentCar.carObject.SetActive(true);
-
-    
-    StartCoroutine(MoveCarToSpot(currentCar.carObject, washingSpot.position, () =>
+    void Update()
     {
-      Animator animator = currentCar.carObject.GetComponent<Animator>();
-      if (animator != null)
-      {
-        Debug.Log("Arriving Animation");
-        animator.SetTrigger("Arrive");
-      }
+        // Countdown the timer
+        timer -= Time.deltaTime;
 
-      // Reset the timer and start washing
-      ResetTimer();
-      isWashing = true;
-
-      Debug.Log("Started washing the car.");
-    }));
-  }
-
-  public void EndCarWash(bool success)
-  {
-    
-    isWashing = false;
-
-    Car currentCar = carList[currentCarIndex];
-    Animator animator = currentCar.carObject.GetComponent<Animator>();
-    StartCoroutine(MoveCar(currentCar.carObject, paintingSpot.position, () =>
-    {
-      
-      currentCar.carObject.SetActive(false);
-
-      // Move to the next car
-      currentCarIndex++;
-      if (currentCarIndex < carList.Count)
-      {
-        SpawnCar();
-        
-        
-        
-
-      }
-      else
-      {
-        Debug.Log("All cars processed.");
-      }
-    }));
-    
-    animator.SetTrigger("Forward");
-    
-    
-
-    ResetTimer(); 
-  }
-
-  IEnumerator MoveCar(GameObject car, Vector3 targetPosition, System.Action onComplete)
-  {
-    float duration = 2f; 
-    Vector3 startPosition = car.transform.position;
-    float elapsedTime = 0f;
-
-    Animator animator = car.GetComponent<Animator>();
-    if (animator != null)
-    {
-      Debug.Log("Exit Animation");
-      animator.SetTrigger("Exit"); 
+        // If the timer reaches zero and there's another car in the queue
+        if (timer <= 0 && carQueue.Count > 0)
+        {
+            SpawnNextCar();
+        }
     }
 
-    while (elapsedTime < duration)
+    void SpawnNextCar()
     {
-      car.transform.position = Vector3.Lerp(startPosition, targetPosition, elapsedTime / duration);
-      elapsedTime += Time.deltaTime;
-      yield return null;
+        // Reset the timer
+        timer = timerInterval;
+
+        // Get the next car from the queue
+        GameObject car = carQueue.Dequeue();
+        GameObject newCar = Instantiate(car, startPoint.position, Quaternion.identity);
+
+        // Attach the CarBehavior script and set the waypoints
+        CarBehavior carBehavior = newCar.AddComponent<CarBehavior>();
+        carBehavior.Initialize(point1, point2, moveSpeed, rotationSpeed, this);
     }
 
-    car.transform.position = targetPosition;
-
-    onComplete?.Invoke();
-  }
-
-  IEnumerator MoveCarToSpot(GameObject car, Vector3 targetPosition, System.Action onComplete)
-  {
-    float duration = 2f; 
-    Vector3 startPosition = car.transform.position;
-    float elapsedTime = 0f;
-
-    while (elapsedTime < duration)
+    public void OnCarDestroyed(GameObject car)
     {
-      car.transform.position = Vector3.Lerp(startPosition, targetPosition, elapsedTime / duration);
-      elapsedTime += Time.deltaTime;
-      yield return null;
+        Destroy(car);
+
+        // If there are cars in the queue, move the next one to the start position
+        if (carQueue.Count > 0)
+        {
+            SpawnNextCar();
+        }
     }
-
-    car.transform.position = targetPosition;
-
-    onComplete?.Invoke();
-  }
-
-  private void ResetTimer()
-  {
-    timer = 0f;
-    Debug.Log("Timer reset.");
-    
-
-  }
 }
