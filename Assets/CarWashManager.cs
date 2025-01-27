@@ -1,138 +1,164 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.AI;
 
 public class CarWashManager : MonoBehaviour
 {
-    [System.Serializable]
-    public class Car
+  [System.Serializable]
+  public class Car
+  {
+    //public string carName;
+    public GameObject carObject;
+  }
+
+  public List<Car> carList;
+  public Transform washingSpot;
+  public Transform paintingSpot;
+  public float carWashTime = 30f;
+
+  private int currentCarIndex = 0;
+  private float timer = 0f;
+  private bool isWashing = false;
+
+  void Start()
+  {
+    if (carList.Count > 0)
     {
-        public GameObject carObject; // Reference to the car GameObject
+      SpawnCar();
+    }
+    else
+    {
+      Debug.LogWarning("Car list is empty!");
+    }
+  }
+
+  void Update()
+  {
+    if (!isWashing || carList.Count == 0) return;
+
+    timer += Time.deltaTime;
+    Debug.Log(timer);
+
+    if (timer > carWashTime)
+    {
+
+      Debug.Log("You ran out of time!");
+      EndCarWash(false); 
+    }
+  }
+
+  void SpawnCar()
+  {
+    if (currentCarIndex >= carList.Count)
+    {
+      Debug.Log("All cars have been washed.");
+      return;
     }
 
-    public List<Car> carList; // List of cars
-    public Transform washingSpot; // Position for washing
-    public List<Transform> waypoints; // Waypoints for the path
-    public float carWashTime = 5f; // Time before car exits
+    Car currentCar = carList[currentCarIndex];
+    currentCar.carObject.SetActive(true);
 
-    private int currentCarIndex = 0; // Current car being processed
-    private bool isWashing = false;
-    private float washEndTime;
-
-    void Start()
+    
+    StartCoroutine(MoveCarToSpot(currentCar.carObject, washingSpot.position, () =>
     {
-        if (carList.Count > 0)
-        {
-            SpawnCar(); // Start with the first car
-        }
-        else
-        {
-            Debug.LogWarning("Car list is empty!");
-        }
+      Animator animator = currentCar.carObject.GetComponent<Animator>();
+      if (animator != null)
+      {
+        Debug.Log("Arriving Animation");
+        animator.SetTrigger("Arrive");
+      }
+
+      // Reset the timer and start washing
+      ResetTimer();
+      isWashing = true;
+
+      Debug.Log("Started washing the car.");
+    }));
+  }
+
+  public void EndCarWash(bool success)
+  {
+    
+    isWashing = false;
+
+    Car currentCar = carList[currentCarIndex];
+    Animator animator = currentCar.carObject.GetComponent<Animator>();
+    StartCoroutine(MoveCar(currentCar.carObject, paintingSpot.position, () =>
+    {
+      
+      currentCar.carObject.SetActive(false);
+
+      // Move to the next car
+      currentCarIndex++;
+      if (currentCarIndex < carList.Count)
+      {
+        SpawnCar();
+        
+        
+        
+
+      }
+      else
+      {
+        Debug.Log("All cars processed.");
+      }
+    }));
+    
+    animator.SetTrigger("Forward");
+    
+    
+
+    ResetTimer(); 
+  }
+
+  IEnumerator MoveCar(GameObject car, Vector3 targetPosition, System.Action onComplete)
+  {
+    float duration = 2f; 
+    Vector3 startPosition = car.transform.position;
+    float elapsedTime = 0f;
+
+    Animator animator = car.GetComponent<Animator>();
+    if (animator != null)
+    {
+      Debug.Log("Exit Animation");
+      animator.SetTrigger("Exit"); 
     }
 
-    void Update()
+    while (elapsedTime < duration)
     {
-        // Check if the washing time is over for the current car
-        if (isWashing && Time.time >= washEndTime)
-        {
-            isWashing = false;
-            MoveCarThroughWaypoints(carList[currentCarIndex].carObject); // Start moving the current car through waypoints
-        }
+      car.transform.position = Vector3.Lerp(startPosition, targetPosition, elapsedTime / duration);
+      elapsedTime += Time.deltaTime;
+      yield return null;
     }
 
-    void SpawnCar()
+    car.transform.position = targetPosition;
+
+    onComplete?.Invoke();
+  }
+
+  IEnumerator MoveCarToSpot(GameObject car, Vector3 targetPosition, System.Action onComplete)
+  {
+    float duration = 2f; 
+    Vector3 startPosition = car.transform.position;
+    float elapsedTime = 0f;
+
+    while (elapsedTime < duration)
     {
-        if (currentCarIndex >= carList.Count)
-        {
-            Debug.Log("All cars have been processed!");
-            return;
-        }
-
-        Car currentCar = carList[currentCarIndex];
-        currentCar.carObject.SetActive(true);
-
-        // Move the car to the washing spot
-        if (currentCarIndex == 0)
-        {
-            MoveCarAlongPath(currentCar.carObject, washingSpot.position, () =>
-            {
-                Debug.Log("Car arrived at washing spot.");
-                isWashing = true;
-                washEndTime = Time.time + carWashTime; // Set the wash timer
-            });
-        }
-        else
-        {
-            // Move the car to the last car's previous position
-            Car previousCar = carList[currentCarIndex - 1];
-            MoveCarAlongPath(currentCar.carObject, previousCar.carObject.transform.position, () =>
-            {
-                // Once the car reaches its spot, send it to the washing spot
-                MoveCarAlongPath(currentCar.carObject, washingSpot.position, () =>
-                {
-                    Debug.Log("Car arrived at washing spot.");
-                    isWashing = true;
-                    washEndTime = Time.time + carWashTime; // Set the wash timer
-                });
-            });
-        }
+      car.transform.position = Vector3.Lerp(startPosition, targetPosition, elapsedTime / duration);
+      elapsedTime += Time.deltaTime;
+      yield return null;
     }
 
-    void MoveCarThroughWaypoints(GameObject car)
-    {
-        // Start moving the car through the waypoints
-        MoveCarAlongPath(car, waypoints[0].position, () =>
-        {
-            Debug.Log("Car started moving along waypoints.");
-            StartCoroutine(FollowWaypoints(car, waypoints));
-        });
-    }
+    car.transform.position = targetPosition;
 
-    void MoveCarAlongPath(GameObject car, Vector3 targetPosition, System.Action onComplete)
-    {
-        NavMeshAgent agent = car.GetComponent<NavMeshAgent>();
-        agent.SetDestination(targetPosition); // Move car to the target position
+    onComplete?.Invoke();
+  }
 
-        StartCoroutine(WaitUntilArrival(agent, onComplete));
-    }
+  private void ResetTimer()
+  {
+    timer = 0f;
+    Debug.Log("Timer reset.");
+    
 
-    IEnumerator WaitUntilArrival(NavMeshAgent agent, System.Action onComplete)
-    {
-        // Wait until the car reaches the destination
-        while (agent.remainingDistance > agent.stoppingDistance)
-        {
-            yield return null;
-        }
-        onComplete?.Invoke(); // Call the completion callback
-    }
-
-    IEnumerator FollowWaypoints(GameObject car, List<Transform> path)
-    {
-        NavMeshAgent agent = car.GetComponent<NavMeshAgent>();
-
-        for (int i = 0; i < path.Count; i++)
-        {
-            agent.SetDestination(path[i].position); // Set the next waypoint as destination
-
-            // Wait until the car reaches this waypoint before moving to the next
-            yield return new WaitUntil(() => agent.remainingDistance <= agent.stoppingDistance);
-        }
-
-        // Once the car finishes the waypoints, destroy it and spawn the next car
-        Destroy(car);
-        Debug.Log("Car finished path and has been destroyed.");
-
-        // Move to the next car if there are more cars
-        currentCarIndex++;
-        if (currentCarIndex < carList.Count)
-        {
-            SpawnCar(); // Spawn the next car
-        }
-        else
-        {
-            Debug.Log("All cars processed.");
-        }
-    }
+  }
 }
