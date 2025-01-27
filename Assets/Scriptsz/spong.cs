@@ -6,8 +6,14 @@ public class SpongeTool : MonoBehaviour
 {
     [SerializeField]
     private List<GameObject> dirtSpots; // List of dirt spots
+   public GameObject Particle;
+    [SerializeField] private AudioClip sound;
+  
+    public float washingDuration = 10f;
+     public Quaternion spawnRotation;
+    public bool isWashing = false;
 
-    private Transform spongePosition;
+    public Transform spongePosition;
     public float margin = 0.5f; // Distance threshold for cleaning
     public float fadeSpeed = 3f;
 
@@ -31,6 +37,8 @@ public class SpongeTool : MonoBehaviour
                 }
             }
         }
+     
+        
     }
 
     void Update()
@@ -39,23 +47,29 @@ public class SpongeTool : MonoBehaviour
     }
 
     public void Cleaning()
+{
+    // Loop through all dirt spots
+    for (int i = 0; i < dirtSpots.Count; i++)
     {
-        // Loop through all dirt spots
-        for (int i = 0; i < dirtSpots.Count; i++)
+        // Skip if the spot or material is missing
+        if (dirtSpots[i] == null || dirtMaterials[i] == null)
         {
-            if (dirtSpots[i] == null || dirtMaterials[i] == null)
-            {
-                continue; // Skip if the spot or material is missing
-            }
+            continue;
+        }
 
-            float distance = Vector3.Distance(spongePosition.position, dirtSpots[i].transform.position);
+        // Calculate the distance between the sponge and the dirt spot
+        float distance = Vector3.Distance(spongePosition.position, dirtSpots[i].transform.position);
+        Debug.Log(distance);
 
-            if (distance < margin && !isFadingList[i])
-            {
-                StartCoroutine(FadeAndDestroy(i)); // Pass the index to handle the specific spot
-            }
+        // If within the margin and not already fading, start fading and play the particle effect
+        if (distance < margin && !isFadingList[i])
+        {
+            StartCoroutine(FadeAndDestroy(i)); // Pass the index to handle the specific spot
+            Particle.SetActive(true); // Activate particle effect
+           
         }
     }
+}
 
     private IEnumerator FadeAndDestroy(int index)
     {
@@ -73,7 +87,7 @@ public class SpongeTool : MonoBehaviour
             yield return null; // Wait for the next frame
         }
 
-        Destroy(dirtSpots[index]); // Remove the dirt spot
+        Destroy(dirtSpots[index],5f); // Remove the dirt spot
         dirtSpots[index] = null; // Set the reference to null
         isFadingList[index] = false;
     }
